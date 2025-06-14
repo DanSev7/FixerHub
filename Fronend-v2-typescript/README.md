@@ -21,7 +21,7 @@ or
 ```bash
 npx expo start
 ```
-## add the following in the.env file
+## add the following in the .env file
 
 ```bash
 EXPO_PUBLIC_SUPABASE_ANON_KEY= "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xd2VpanhoeWtyYnVpcGh0YmVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0NzA2ODksImV4cCI6MjA2NTA0NjY4OX0.yPclqcfzwaxozr_PFdyAcqVZ5yio__tHNF57lmzrJFE"
