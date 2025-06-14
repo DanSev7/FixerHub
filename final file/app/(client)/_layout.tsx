@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Search, MessageSquare, User, Star } from 'lucide-react-native';
+import { Search, MessageSquare, User, Star, BotMessageSquare } from 'lucide-react-native';
 
 export default function ClientTabLayout() {
   return (
@@ -50,6 +50,15 @@ export default function ClientTabLayout() {
           ),
         }}
       />
+         <Tabs.Screen
+        name="AIchat"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ size, color }) => (
+            <BotMessageSquare size={size} color={color} strokeWidth={2} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -59,6 +68,7 @@ export default function ClientTabLayout() {
           ),
         }}
       />
+
     </Tabs>
   );
 }
