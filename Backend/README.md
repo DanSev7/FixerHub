@@ -9,7 +9,7 @@ This document provides a comprehensive guide for interacting with the **FixerHub
 | Environment | URL |
 |------------|-----|
 | Local       | `http://localhost:3000` |
-| Development (ngrok) | `https://193e-196-190-62-54.ngrok-free.app` |
+| Development (ngrok) | `https://5944-196-190-62-25.ngrok-free.app` |
 
 All API endpoints are prefixed with `/api`.
 
@@ -92,7 +92,7 @@ CREATE TABLE professional_documents (
 #### ✅ Example (React Native)
 
 ```js
-fetch('https://193e-196-190-62-54.ngrok-free.app/api/signup', {
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/signup', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -135,7 +135,7 @@ fetch('https://193e-196-190-62-54.ngrok-free.app/api/signup', {
 #### ✅ Example
 
 ```js
-fetch('https://193e-196-190-62-54.ngrok-free.app/api/verify-email', {
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/verify-email', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ otp: '123456' })
@@ -175,7 +175,7 @@ fetch('https://193e-196-190-62-54.ngrok-free.app/api/verify-email', {
 #### ✅ Example
 
 ```js
-fetch('https://193e-196-190-62-54.ngrok-free.app/api/login', {
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -221,7 +221,7 @@ fetch('https://193e-196-190-62-54.ngrok-free.app/api/login', {
 
 ```js
 const base64Image = "your_base64_string_here";
-fetch('https://193e-196-190-62-54.ngrok-free.app/api/verify-id', {
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/verify-id', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
