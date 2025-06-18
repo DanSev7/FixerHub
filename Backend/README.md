@@ -1,60 +1,98 @@
-FixerHub Backend API Documentation
-This document provides a comprehensive guide to the HTTP requests required to interact with the FixerHub backend API. The API is designed to support a React Native frontend for user authentication and ID verification. All endpoints are prefixed with /api.
-Prerequisites
+# 🛠️ FixerHub Backend API Documentation
 
-Base URL: https://193e-196-190-62-54.ngrok-free.app  || http://localhost:3000 (or your deployed server URL)
-HTTP Client: Use Fetch API or Axios in React Native
-Authentication: JWT tokens are required for protected endpoints (e.g., /verify-id)
-Dependencies: Ensure supabase, bcryptjs, jsonwebtoken, joi, nodemailer, and tesseract.js are installed
+This document provides a comprehensive guide for interacting with the **FixerHub backend API**, designed to support a **React Native frontend** for user **authentication** and **ID verification**.
 
-## Update Tables
+---
 
-CREATE TABLE users (
-    user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone_number VARCHAR(20),
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'professional')),
-    is_verified BOOLEAN DEFAULT FALSE,
-    verification_otp VARCHAR(6),
-    location VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+## 🔗 Base URLs
 
-CREATE TABLE professional_documents (
-    document_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    national_id_document_url TEXT,
-    verification_status VARCHAR(20) CHECK (verification_status IN ('pending', 'verified', 'failed')) DEFAULT 'pending',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+| Environment | URL |
+|------------|-----|
+| Local       | `http://localhost:3000` |
+| Development (ngrok) | `https://5944-196-190-62-25.ngrok-free.app` |
 
-### Environment Variable (.env)
+All API endpoints are prefixed with `/api`.
+
+---
+
+## 📦 Prerequisites
+
+- **HTTP Client:** Use `fetch` or `axios` in React Native.
+- **Authentication:** JWT token required for protected endpoints (e.g., `/verify-id`).
+- **Environment Variables:**
+
+```env
 EMAIL_USER=daniel.ayele@anbesg.com
 EMAIL_PASS=lonjvqsuqrbdaled
 JWT_SECRET=your-secret-key
+```
 
+- **Dependencies:**
 
+```bash
+npm install @supabase/supabase-js bcryptjs jsonwebtoken joi nodemailer tesseract.js
+```
 
-Endpoints
-1. User Signup
+---
 
-Method: POST
-Endpoint: /api/signup
-Description: Registers a new user (client or professional) and sends a verification OTP via email.
-Request Body:{
+## 🗃️ Database Tables (SQL)
+
+### `users`
+
+```sql
+CREATE TABLE users (
+  user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(20),
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('client', 'professional')),
+  is_verified BOOLEAN DEFAULT FALSE,
+  verification_otp VARCHAR(6),
+  location VARCHAR(255),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### `professional_documents`
+
+```sql
+CREATE TABLE professional_documents (
+  document_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+  national_id_document_url TEXT,
+  verification_status VARCHAR(20) CHECK (verification_status IN ('pending', 'verified', 'failed')) DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## 🔐 Endpoints
+
+### 1. **User Signup**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/signup`
+- **Description:** Register a new user and send an OTP via email.
+
+#### 📨 Request Body
+```json
+{
   "username": "string (min 3, max 255)",
   "email": "string (valid email)",
-  "phone_number": "string (10 digits, optional)",
+  "phone_number": "string (optional)",
   "password": "string (min 6)",
-  "role": "string (client or professional)"
+  "role": "client or professional"
 }
+```
 
+#### ✅ Example (React Native)
 
-Example Request (Fetch in React Native):fetch('https://193e-196-190-62-54.ngrok-free.app/api/signup', {
+```js
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/signup', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -62,127 +100,178 @@ Example Request (Fetch in React Native):fetch('https://193e-196-190-62-54.ngrok-
     email: 'ayele@example.com',
     phone_number: '0940685349',
     password: 'password123',
-    role: 'client',
+    role: 'client'
   }),
 })
-  .then(response => response.json())
-  .then(data => console.log(data))
-  .catch(error => console.error('Error:', error));
+.then(res => res.json())
+.then(console.log)
+.catch(console.error);
+```
 
+#### 🔁 Responses
 
-Response:
-Success (201): {"message": "Client registered. Verify your email."}
-Error (400): {"error": "Validation error message"}
+- `201 Created`:  
+  ```json
+  { "message": "Client registered. Verify your email." }
+  ```
+- `400 Bad Request`:  
+  ```json
+  { "error": "Validation error message" }
+  ```
 
+---
 
+### 2. **Verify Email**
 
-2. Verify Email
+- **Method:** `POST`
+- **Endpoint:** `/api/verify-email`
+- **Description:** Confirm email using OTP.
 
-Method: POST
-Endpoint: /api/verify-email
-Description: Verifies the user's email using the OTP sent during signup.
-Request Body:{
-  "otp": "string (6 digits)"
-}
+#### 📨 Request Body
+```json
+{ "otp": "123456" }
+```
 
+#### ✅ Example
 
-Example Request (Fetch in React Native):fetch('https://193e-196-190-62-54.ngrok-free.app/api/verify-email', {
+```js
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/verify-email', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    otp: '123456',
-  }),
+  body: JSON.stringify({ otp: '123456' })
 })
-  .then(response => response.json())
-  .then(data => console.log(data))
-  .catch(error => console.error('Error:', error));
+.then(res => res.json())
+.then(console.log)
+.catch(console.error);
+```
 
+#### 🔁 Responses
 
-Response:
-Success (200): {"message": "Email verified successfully", "token": "jwt-token"}
-Error (400): {"error": "Invalid OTP"}
+- `200 OK`:
+  ```json
+  { "message": "Email verified successfully", "token": "jwt-token" }
+  ```
+- `400 Bad Request`:
+  ```json
+  { "error": "Invalid OTP" }
+  ```
 
+---
 
+### 3. **User Login**
 
-3. User Login
+- **Method:** `POST`
+- **Endpoint:** `/api/login`
+- **Description:** Authenticate a user and return a JWT.
 
-Method: POST
-Endpoint: /api/login
-Description: Authenticates a user and returns a JWT token.
-Request Body:{
-  "email": "string (valid email)",
-  "password": "string (min 6)"
+#### 📨 Request Body
+```json
+{
+  "email": "ayele@example.com",
+  "password": "password123"
 }
+```
 
+#### ✅ Example
 
-Example Request (Fetch in React Native):fetch('https://193e-196-190-62-54.ngrok-free.app/api/login', {
+```js
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     email: 'ayele@example.com',
-    password: 'password123',
-  }),
-})
-  .then(response => response.json())
-  .then(data => {
-    console.log(data);
-    // Store token securely (e.g., AsyncStorage)
+    password: 'password123'
   })
-  .catch(error => console.error('Error:', error));
+})
+.then(res => res.json())
+.then(data => {
+  console.log(data);
+  // Store token using AsyncStorage
+})
+.catch(console.error);
+```
 
+#### 🔁 Responses
 
-Response:
-Success (200): {"token": "jwt-token", "redirect": "/verify-id"}
-Error (400): {"error": "Invalid credentials"}
+- `200 OK`:  
+  ```json
+  { "token": "jwt-token", "redirect": "/verify-id" }
+  ```
+- `400 Bad Request`:  
+  ```json
+  { "error": "Invalid credentials" }
+  ```
 
+---
 
+### 4. **Verify ID**
 
-4. Verify ID
+- **Method:** `POST`
+- **Endpoint:** `/api/verify-id`
+- **Description:** Upload and verify national ID using OCR. Requires token.
 
-Method: POST
-Endpoint: /api/verify-id
-Description: Verifies the user's ID document by comparing extracted text with their username. Requires a valid JWT token in the Authorization header.
-Request Body:{
-  "image": "string (base64-encoded image, add your base64 image here)"
+#### 📨 Request Body
+```json
+{
+  "image": "data:image/jpeg;base64,..."
 }
+```
 
+#### ✅ Example (React Native)
 
-Example Request (Fetch in React Native):// Assume image is converted to base64 (e.g., using react-native-image-picker)
-const base64Image = 'add your base64 image here'; // Replace with actual base64
-fetch('https://193e-196-190-62-54.ngrok-free.app/api/verify-id', {
+```js
+const base64Image = "your_base64_string_here";
+fetch('https://5944-196-190-62-25.ngrok-free.app/api/verify-id', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${yourToken}`, // Replace with stored token
+    'Authorization': `Bearer ${yourToken}`,
   },
   body: JSON.stringify({
     image: `data:image/jpeg;base64,${base64Image}`,
-  }),
+  })
 })
-  .then(response => response.json())
-  .then(data => console.log(data))
-  .catch(error => console.error('Error:', error));
+.then(res => res.json())
+.then(console.log)
+.catch(console.error);
+```
 
+#### 🔁 Responses
 
-Response:
-Success (200): {"message": "Verification Successful"} or {"message": "Verification Failed"}
-Error (400): {"message": "Image and user ID are required"}
-Error (401): {"message": "Invalid token"}
-Error (500): {"message": "Error processing image"}
+- `200 OK`:  
+  ```json
+  { "message": "Verification Successful" }
+  ```
+- `400 Bad Request`:  
+  ```json
+  { "message": "Image and user ID are required" }
+  ```
+- `401 Unauthorized`:  
+  ```json
+  { "message": "Invalid token" }
+  ```
+- `500 Server Error`:  
+  ```json
+  { "message": "Error processing image" }
+  ```
 
+---
 
+## 📌 Notes & Best Practices
 
-Notes
+- **Token Management:** Store JWT securely (e.g., using `AsyncStorage`).
+- **Image Upload:** Use `react-native-image-picker` to get base64 image for upload.
+- **Environment Config:** Use `.env` for sensitive keys and load with `dotenv`.
+- **Error Handling:** Always catch and display user-friendly error messages in the frontend.
 
-Token Management: Store the JWT token securely using AsyncStorage in React Native after login or email verification. Include it in the Authorization header as Bearer ${token} for protected endpoints.
-Image Handling: Use a library like react-native-image-picker to convert images to base64 before sending to /verify-id.
-Environment Variables: In production, set JWT_SECRET, EMAIL_USER, and EMAIL_PASS in a .env file and use dotenv to load them.
-Error Handling: Implement robust error handling in React Native to display user-friendly messages.
+---
 
-Setup
+## 🚀 Getting Started
 
-Install dependencies: npm install @supabase/supabase-js bcryptjs jsonwebtoken joi nodemailer tesseract.js
-Configure Supabase with the provided URL and key.
-Set up email service (e.g., Gmail) with the credentials in .env.
-Run the server: node server.js
+```bash
+# Install dependencies
+npm install @supabase/supabase-js bcryptjs jsonwebtoken joi nodemailer tesseract.js
 
+# Run backend server
+node server.js
+```
