@@ -1,3 +1,4 @@
+// File: SignUp.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -10,16 +11,19 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react-native';
 
 export default function SignUp() {
+  const params = useLocalSearchParams();
+  const role = params.role as 'client' | 'professional';
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    phoneNumber: '',
+    phone_number: '',
     password: '',
     confirmPassword: '',
   });
@@ -30,9 +34,9 @@ export default function SignUp() {
   const router = useRouter();
 
   const handleSignUp = async () => {
-    const { username, email, phoneNumber, password, confirmPassword } = formData;
+    const { username, email, phone_number, password, confirmPassword } = formData;
 
-    if (!username || !email || !phoneNumber || !password || !confirmPassword) {
+    if (!username || !email || !phone_number || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -49,13 +53,9 @@ export default function SignUp() {
 
     setLoading(true);
     try {
-      await signUp(email, password, {
-        username,
-        email,
-        phoneNumber,
-        role: 'client', // Default role, will be changed in role selection
-      });
-      router.push('/auth/verify');
+      await signUp(email, password, { username, phone_number, role });
+      console.log('Navigating to verify with email:', email); // Debug log
+      router.push({ pathname: '/auth/verify', params: { email } });
     } catch (error: any) {
       Alert.alert('Sign Up Failed', error.message);
     } finally {
@@ -68,26 +68,16 @@ export default function SignUp() {
   };
 
   return (
-    <LinearGradient
-      colors={['#2563EB', '#1D4ED8', '#1E40AF']}
-      style={styles.container}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+    <LinearGradient colors={['#2563EB', '#1D4ED8', '#1E40AF']} style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <ArrowLeft size={24} color="white" />
           </TouchableOpacity>
 
           <View style={styles.header}>
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join FixerHub today</Text>
+            <Text style={styles.subtitle}>Join FixerHub as a {role}</Text>
           </View>
 
           <View style={styles.form}>
@@ -123,8 +113,8 @@ export default function SignUp() {
                 style={styles.input}
                 placeholder="Phone Number"
                 placeholderTextColor="rgba(255,255,255,0.7)"
-                value={formData.phoneNumber}
-                onChangeText={(value) => updateFormData('phoneNumber', value)}
+                value={formData.phone_number}
+                onChangeText={(value) => updateFormData('phone_number', value)}
                 keyboardType="phone-pad"
                 autoComplete="tel"
               />
@@ -146,11 +136,7 @@ export default function SignUp() {
                 onPress={() => setShowPassword(!showPassword)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {showPassword ? (
-                  <EyeOff size={20} color="rgba(255,255,255,0.7)" />
-                ) : (
-                  <Eye size={20} color="rgba(255,255,255,0.7)" />
-                )}
+                {showPassword ? <EyeOff size={20} color="rgba(255,255,255,0.7)" /> : <Eye size={20} color="rgba(255,255,255,0.7)" />}
               </TouchableOpacity>
             </View>
 
@@ -170,27 +156,17 @@ export default function SignUp() {
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {showConfirmPassword ? (
-                  <EyeOff size={20} color="rgba(255,255,255,0.7)" />
-                ) : (
-                  <Eye size={20} color="rgba(255,255,255,0.7)" />
-                )}
+                {showConfirmPassword ? <EyeOff size={20} color="rgba(255,255,255,0.7)" /> : <Eye size={20} color="rgba(255,255,255,0.7)" />}
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSignUp}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </Text>
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignUp} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
             </TouchableOpacity>
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/auth/')}>
+              <TouchableOpacity onPress={() => router.push('/auth')}>
                 <Text style={styles.linkText}>Sign In</Text>
               </TouchableOpacity>
             </View>
@@ -202,41 +178,14 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 32,
-    paddingTop: 60,
-    paddingBottom: 32,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-    marginBottom: 32,
-    padding: 8,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-  },
-  form: {
-    width: '100%',
-  },
+  container: { flex: 1 },
+  keyboardView: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 60, paddingBottom: 32 },
+  backButton: { alignSelf: 'flex-start', marginBottom: 32, padding: 8 },
+  header: { alignItems: 'center', marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: '700', color: 'white', marginBottom: 8 },
+  subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+  form: { width: '100%' },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,23 +197,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  passwordInput: {
-    paddingRight: 40,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    padding: 4,
-  },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, color: 'white', fontSize: 16, fontWeight: '500' },
+  passwordInput: { paddingRight: 40 },
+  eyeIcon: { position: 'absolute', right: 16, padding: 4 },
   button: {
     backgroundColor: 'white',
     paddingVertical: 16,
@@ -277,26 +213,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#2563EB',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 32,
-  },
-  footerText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 16,
-  },
-  linkText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonDisabled: { opacity: 0.7 },
+  buttonText: { color: '#2563EB', fontSize: 16, fontWeight: '600' },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
+  footerText: { color: 'rgba(255,255,255,0.8)', fontSize: 16 },
+  linkText: { color: 'white', fontSize: 16, fontWeight: '600' },
 });

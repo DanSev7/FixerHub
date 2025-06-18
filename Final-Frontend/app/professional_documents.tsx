@@ -2,147 +2,203 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Alert,
+  TouchableOpacity,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '@/config/api';
 
-export default function UploadDocuments() {
-  const router = useRouter();
+export default function ProfessionalDocument() {
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [base64Image, setBase64Image] = useState<string | null>(null);
+  const [resultMessage, setResultMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { token } = useAuth();
 
-  const { userProfile } = useAuth();
-  const [nationalID, setNationalID] = useState<DocumentPicker.DocumentResult | null>(null);
-  const [workClearance, setWorkClearance] = useState<DocumentPicker.DocumentResult | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const pickDocument = async (type: 'national' | 'clearance') => {
-    const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
-    if (result.canceled) return;
-
-    if (type === 'national') setNationalID(result.assets[0]);
-    else setWorkClearance(result.assets[0]);
-  };
-
-  const handleUpload = async () => {
-    if (!nationalID || !workClearance) {
-      Alert.alert('Missing Files', 'Please upload both required documents.');
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Permission required', 'Permission to access gallery is required!');
       return;
     }
 
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1000 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+
+      console.log('[📸 Image Selected]');
+      console.log('URI:', manipulatedImage.uri);
+      console.log('Base64 length:', manipulatedImage.base64?.length);
+
+      setImageUri(manipulatedImage.uri);
+      setBase64Image(`data:image/jpeg;base64,${manipulatedImage.base64}`);
+      setResultMessage('');
+    }
+  };
+
+  const verifyId = async () => {
+    if (!base64Image || !token) {
+      Alert.alert('Missing data', 'Image or token is missing');
+      return;
+    }
+
+    console.log('[🔑 Token]', token.slice(0, 10) + '...');
+
     try {
-      setUploading(true);
-
-      // Upload to Supabase Storage
-      const uploadFile = async (file: DocumentPicker.DocumentPickerAsset, path: string) => {
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
-        const { data, error } = await supabase.storage
-          .from('documents')
-          .upload(path, blob, { upsert: true });
-
-        if (error) throw error;
-        return `${supabase.storage.from('documents').getPublicUrl(path).data.publicUrl}`;
-      };
-
-      const nationalIDUrl = await uploadFile(nationalID, `national_ids/${userProfile.user_id}-${Date.now()}`);
-      const clearanceUrl = await uploadFile(workClearance, `clearance_docs/${userProfile.user_id}-${Date.now()}`);
-
-      // Insert into professional_documents
-      const { error } = await supabase.from('professional_documents').upsert({
-        user_id: userProfile.user_id,
-        national_id_document_url: nationalIDUrl,
-        work_clearance_document_url: clearanceUrl,
-        verification_status: 'pending',
-        verification_otp: null,
-        verified_name: null,
-        updated_at: new Date().toISOString(),
+      setLoading(true);
+      const response = await fetch(`${API_URL}/verify-id`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ image: base64Image }),
       });
 
-      if (error) throw error;
+      const responseText = await response.text();
+      console.log('[📨 Response Status]', response.status);
+      console.log('[📨 Response Body]', responseText);
 
-      Alert.alert('Success', 'Documents uploaded successfully. Verification is pending.');
-      setNationalID(null);
-      setWorkClearance(null);
-    } catch (err: any) {
-      Alert.alert('Upload Failed', err.message);
+      try {
+        const data = JSON.parse(responseText);
+        setResultMessage(data.message || 'Unknown response');
+      } catch (jsonErr) {
+        console.error('❌ JSON parse error:', jsonErr);
+        setResultMessage('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('❌ Verification error:', error);
+      setResultMessage('Error verifying ID');
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-  <Text style={styles.backButtonText}>← Back</Text>
-</TouchableOpacity>
+    <View style={styles.container}>
+      <Text style={styles.title}>National ID Verification</Text>
 
-      <Text style={styles.title}>Upload Verification Documents</Text>
-
-      <TouchableOpacity style={styles.uploadButton} onPress={() => pickDocument('national')}>
-        <Text style={styles.uploadButtonText}>
-          {nationalID ? `Selected: ${nationalID.name}` : 'Upload National ID'}
-        </Text>
+      <TouchableOpacity style={styles.button} onPress={pickImage}>
+        <Text style={styles.buttonText}>📷 Select ID Image</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.uploadButton} onPress={() => pickDocument('clearance')}>
-        <Text style={styles.uploadButtonText}>
-          {workClearance ? `Selected: ${workClearance.name}` : 'Upload Work Clearance'}
-        </Text>
-      </TouchableOpacity>
+      {imageUri && (
+        <View style={styles.card}>
+          <Image source={{ uri: imageUri }} style={styles.image} />
+        </View>
+      )}
 
-      <TouchableOpacity style={styles.submitButton} onPress={handleUpload} disabled={uploading}>
-        {uploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Submit</Text>}
-      </TouchableOpacity>
-    </SafeAreaView>
+      {base64Image && !loading && (
+        <TouchableOpacity style={styles.buttonSecondary} onPress={verifyId}>
+          <Text style={styles.buttonText}>🔍 Verify ID</Text>
+        </TouchableOpacity>
+      )}
+
+      {loading && <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }} />}
+
+      {resultMessage !== '' && (
+        <View style={styles.resultBox}>
+          <Text
+            style={[
+              styles.result,
+              resultMessage.toLowerCase().includes('success')
+                ? styles.success
+                : styles.error,
+            ]}
+          >
+            {resultMessage}
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 20,
+    padding: 24,
+    backgroundColor: '#f9f9f9',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 24,
-    textAlign: 'center',
+    marginBottom: 20,
+    marginTop: 20,
+    color: '#222',
   },
-  uploadButton: {
-    backgroundColor: '#E5E7EB',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
+  button: {
+    backgroundColor: '#007bff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    marginVertical: 10,
   },
-  uploadButtonText: {
-    textAlign: 'center',
-    color: '#111827',
-    fontWeight: '500',
+  buttonSecondary: {
+    backgroundColor: '#28a745',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    marginTop: 10,
   },
-  submitButton: {
-    backgroundColor: '#2563EB',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  submitButtonText: {
+  buttonText: {
     color: '#fff',
     fontWeight: '600',
-  },backButton: {
-  marginBottom: 16,
-},
-backButtonText: {
-  fontSize: 16,
-  color: '#2563EB',
-  fontWeight: '500',
-},
-
+    fontSize: 16,
+  },
+  card: {
+    marginTop: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    padding: 10,
+  },
+  image: {
+    width: 300,
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'contain',
+  },
+  resultBox: {
+    marginTop: 25,
+    padding: 16,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  result: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  success: {
+    color: '#28a745',
+  },
+  error: {
+    color: '#dc3545',
+  },
 });

@@ -114,7 +114,7 @@ export default function ProfessionalDashboard() {
     try {
       const { data, error } = await supabase
         .from('professional_documents')
-        .select('verification_status, national_id_document_url, work_clearance_document_url')
+        .select('verification_status, national_id_document_url')
         .eq('user_id', userProfile.user_id)
         .single();
 
@@ -125,7 +125,7 @@ export default function ProfessionalDashboard() {
       if (data) {
         setVerificationStatus({
           status: data.verification_status,
-          hasDocuments: !!(data.national_id_document_url && data.work_clearance_document_url),
+          hasDocuments: !!data.national_id_document_url,
         });
       }
     } catch (error) {

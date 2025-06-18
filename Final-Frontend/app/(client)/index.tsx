@@ -87,8 +87,10 @@ export default function ClientSearch() {
           users!inner (
             username
           ),
-          categories!inner (
-            category_name
+          job_sub_category_pricing!inner (
+            sub_categories!inner (
+              category_name
+            )
           )
         `)
         .eq('is_active', true);
@@ -105,7 +107,7 @@ export default function ClientSearch() {
       const transformedData = data?.map((item: any) => ({
         user_id: item.user_id,
         username: item.users.username,
-        category_name: item.categories.category_name,
+        category_name: item.job_sub_category_pricing.sub_categories.category_name,
         category_price: item.category_price,
         location: null, // TODO: Add location calculation
         average_rating: 4.5, // TODO: Calculate from reviews

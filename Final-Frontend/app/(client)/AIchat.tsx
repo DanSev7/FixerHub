@@ -26,73 +26,99 @@ export default function AIChat() {
   const flatListRef = useRef<FlatList>(null);
 
   const getAIResponse = async (userMessage: string): Promise<string> => {
-    const message = userMessage.toLowerCase();
+    const message = userMessage.toLowerCase().trim();
 
-    if (message.includes('plumber') || message.includes('leak') || message.includes('sink')) {
-      return `It sounds like you need plumbing services. 🛠️ You can search for a licensed plumber in your city through the platform. Make sure to describe the issue (e.g. "leaking sink in the kitchen") and your location for quicker help.`;
+    // Greetings and General Inquiries
+    if (message === 'hello' || message === 'hi' || message === 'hey') {
+      return `Selam! 👋 Welcome to FixerHub in Addis Ababa. How can I help you find a professional today? Need a plumber, electrician, or maybe a cleaner? Just let me know!`;
+    } else if (message.includes('how are you') || message.includes('how’s it going')) {
+      return `I’m doing great, thanks for asking! 😊 Ready to connect you with top professionals in Addis Ababa. What service are you looking for today?`;
+    } else if (message.includes('what can you do') || message.includes('help')) {
+      return `I’m here to help you find skilled professionals in Addis Ababa! 🛠️ Whether it’s plumbing, electrical work, cleaning, or even tailoring, just tell me what you need, and I’ll guide you to the right pros. What’s on your mind?`;
+    } else if (message.includes('who are you') || message.includes('about')) {
+      return `I’m FixerHub’s AI assistant, here to make finding professionals in Addis Ababa easy! 🌆 Tell me what service you need—like carpentry, pest control, or gardening—and I’ll point you in the right direction.`;
+    }
+
+    // Service-Specific Responses
+    if (message.includes('plumber') || message.includes('leak') || message.includes('sink') || message.includes('pipe')) {
+      return `Got a plumbing issue? 🚰 In Addis Ababa, you can find skilled plumbers on FixerHub. Describe the problem (e.g., "leaking pipe under sink") to connect with pros near you.`;
     } else if (message.includes('electric') || message.includes('outlet') || message.includes('socket') || message.includes('wiring')) {
-      return `For electrical problems like faulty outlets or wiring, look for a certified electrician in your area. ⚡ Include the issue and city so pros can assist you better.`;
-    } else if (message.includes('clean') || message.includes('dust') || message.includes('maid')) {
-      return `Need help cleaning? 🧼 You can hire local cleaners for one-time or recurring services. Describe the job (e.g. apartment cleaning, 2 bedrooms) and your city to get matched.`;
+      return `Electrical trouble? ⚡ Search for certified electricians in Addis Ababa on FixerHub. Specify the issue (e.g., "faulty socket in Bole") to find reliable pros.`;
+    } else if (message.includes('clean') || message.includes('dust') || message.includes('maid') || message.includes('housekeeping')) {
+      return `Need a cleaner in Addis Ababa? 🧼 FixerHub has trusted cleaners for homes or offices. Tell us about the job (e.g., "deep clean 3-bedroom house in Kazanchis") to get matched.`;
     } else if (message.includes('garden') || message.includes('lawn') || message.includes('tree') || message.includes('landscape')) {
-      return `For lawn care, tree trimming, or garden makeovers 🌱, search for gardeners or landscapers nearby. Mention the work needed and your city to receive estimates.`;
+      return `Want a beautiful garden? 🌱 Find gardeners or landscapers in Addis Ababa on FixerHub. Describe your needs (e.g., "lawn mowing in Gullele") to connect with experts.`;
     } else if (message.includes('carpenter') || message.includes('furniture') || message.includes('wood') || message.includes('cabinet')) {
-      return `If you're building or fixing furniture, a skilled carpenter can help. 🪚 Try describing your need (e.g. "assemble a bookshelf" or "custom cabinet install") and your area.`;
-    } else if (message.includes('book') || message.includes('schedule')) {
-      return `To book a service, first describe what kind of job you need and where you're located. You’ll then be able to view available professionals and choose one based on their profile and rates. 📅`;
-    }else if (message.includes('paint') || message.includes('painting') || message.includes('wall')) {
-  return `Looking for painting services? 🎨 Whether it's interior or exterior walls, find professional painters nearby. Be sure to specify the area and type of paint job for accurate quotes.`;
-} else if (message.includes('roof') || message.includes('leakage') || message.includes('shingles')) {
-  return `Roof repairs or replacements? 🏠 Search for experienced roofing contractors in your city. Describe the issue like "roof leak after rain" to get the best help.`;
-} else if (message.includes('pest') || message.includes('exterminator') || message.includes('insects') || message.includes('rodents')) {
-  return `Dealing with pests? 🐜 Find licensed pest control experts for termite treatment, rodent removal, and more. Mention the pest type and location for quick assistance.`;
-} else if (message.includes('hvac') || message.includes('air conditioning') || message.includes('heater') || message.includes('furnace')) {
-  return `Need HVAC services? ❄️🔥 Look for certified technicians to repair or install air conditioners, heaters, or furnaces. Include your city and the specific problem for faster service.`;
-} else if (message.includes('moving') || message.includes('relocate') || message.includes('pack') || message.includes('storage')) {
-  return `Planning a move? 🚚 Hire professional movers for packing, transporting, or storage solutions. Describe the size of your move and location to find the right team.`;
-} else if (message.includes('cleanse') || message.includes('detox') || message.includes('spa')) {
-  return `Looking for wellness services? 💆‍♀️ Search for local spas, massage therapists, or detox centers. Specify the treatment and your area to get personalized recommendations.`;
-} else if (message.includes('tutor') || message.includes('lesson') || message.includes('class') || message.includes('teacher')) {
-  return `Need tutoring or lessons? 📚 Find qualified tutors or instructors for various subjects or skills. Mention the subject and your location to connect with the best fit.`;
-} else if (message.includes('car') || message.includes('auto') || message.includes('mechanic') || message.includes('repair')) {
-  return `Car troubles? 🚗 Search for trusted mechanics or auto repair shops nearby. Describe the issue and your city to get reliable service options.`;
-} else if (message.includes('tech') || message.includes('computer') || message.includes('repair') || message.includes('setup')) {
-  return `Having tech issues? 💻 Find IT professionals or computer repair services in your area. Include the device and problem for tailored support.`;
-}
-else if (message.includes('lock') || message.includes('key') || message.includes('locksmith')) {
-  return `Locked out or need new keys? 🔐 Find reliable locksmiths nearby for lock repairs, key duplication, or emergency lockout services. Provide your location for quick assistance.`;
-} else if (message.includes('window') || message.includes('glass') || message.includes('pane') || message.includes('repair')) {
-  return `Need window or glass repairs? 🪟 Search for professionals who can fix or replace broken windows, glass panes, or screens. Mention the type of repair and your city for accurate quotes.`;
-} else if (message.includes('floor') || message.includes('tile') || message.includes('carpet') || message.includes('hardwood')) {
-  return `Looking to install or repair flooring? 🛠️ Find experts in tile, carpet, hardwood, or laminate flooring. Describe your project and location to get matched with pros.`;
-} else if (message.includes('appliance') || message.includes('fridge') || message.includes('oven') || message.includes('washer') || message.includes('dryer')) {
-  return `Appliance not working? 🧺 Find certified technicians to repair refrigerators, ovens, washers, dryers, and more. Include the appliance type and your area for faster help.`;
-} else if (message.includes('roof cleaning') || message.includes('gutter') || message.includes('pressure wash') || message.includes('power wash')) {
-  return `Need exterior cleaning? 🚿 Look for services like roof cleaning, gutter clearing, or pressure washing. Specify the service and your location to find local providers.`;
-} else if (message.includes('photographer') || message.includes('photo') || message.includes('shoot') || message.includes('wedding')) {
-  return `Looking for a photographer? 📸 Find professionals for events, portraits, weddings, or commercial shoots. Mention the event type and city to connect with photographers near you.`;
-} else if (message.includes('cater') || message.includes('catering') || message.includes('food') || message.includes('party')) {
-  return `Planning an event? 🍽️ Search for catering services to provide delicious food for your party or gathering. Include your location and event details for the best matches.`;
-} else if (message.includes('fitness') || message.includes('trainer') || message.includes('yoga') || message.includes('personal trainer')) {
-  return `Want to get fit? 💪 Find personal trainers, yoga instructors, or fitness coaches nearby. Describe your goals and location to find the perfect match.`;
-} else if (message.includes('pet') || message.includes('dog walker') || message.includes('pet sitter') || message.includes('grooming')) {
-  return `Need pet care? 🐕 Find dog walkers, pet sitters, or groomers in your area. Specify the service and your city to get connected with trusted pet professionals.`;
-} else if (message.includes('translator') || message.includes('translation') || message.includes('interpreter') || message.includes('language')) {
-  return `Looking for translation or interpretation services? 🌐 Find qualified translators or interpreters for various languages. Mention the language and location to get started.`;
-} else if (message.includes('event planner') || message.includes('party') || message.includes('wedding planner') || message.includes('organizer')) {
-  return `Planning an event? 🎉 Hire experienced event planners or organizers to make your occasion memorable. Provide details and your city to find the right professionals.`;
-} else if (message.includes('legal') || message.includes('lawyer') || message.includes('attorney') || message.includes('consultation')) {
-  return `Need legal advice? ⚖️ Search for qualified lawyers or legal consultants in your area. Describe your issue and location to connect with legal experts.`;
-} else if (message.includes('accountant') || message.includes('tax') || message.includes('bookkeeping') || message.includes('finance')) {
-  return `Looking for financial help? 💼 Find accountants, tax preparers, or bookkeepers nearby. Mention your needs and city for personalized assistance.`;
-} else if (message.includes('massage') || message.includes('therapist') || message.includes('spa') || message.includes('relax')) {
-  return `Want to relax? 💆‍♂️ Find massage therapists or spa services in your area. Specify the treatment type and location to get matched.`;
-} else if (message.includes('web') || message.includes('design') || message.includes('developer') || message.includes('website')) {
-  return `Need a website or app? 💻 Find skilled web designers and developers nearby. Describe your project and location to get started.`;
-}
+      return `Looking for carpentry work? 🪚 Addis Ababa’s carpenters on FixerHub can build or repair furniture. Share details (e.g., "custom wardrobe in Yeka") to find the right pro.`;
+    } else if (message.includes('paint') || message.includes('painting') || message.includes('wall')) {
+      return `Need painting services? 🎨 Find professional painters in Addis Ababa on FixerHub. Specify the job (e.g., "paint living room in Nifas Silk") for accurate matches.`;
+    } else if (message.includes('roof') || message.includes('leakage') || message.includes('shingles')) {
+      return `Roof problems? 🏠 Connect with roofing experts in Addis Ababa via FixerHub. Describe the issue (e.g., "roof leak in Arada") to find trusted contractors.`;
+    } else if (message.includes('pest') || message.includes('exterminator') || message.includes('insects') || message.includes('rodents')) {
+      return `Pest issues? 🐜 FixerHub has pest control experts in Addis Ababa for termites, rodents, and more. Mention the pest type (e.g., "cockroaches in Lideta") to get help.`;
+    } else if (message.includes('hvac') || message.includes('air conditioning') || message.includes('heater') || message.includes('furnace')) {
+      return `Need HVAC services? ❄️🔥 Find technicians in Addis Ababa on FixerHub for AC or heater repairs. Share the problem (e.g., "AC not cooling in Kirkos") for quick matches.`;
+    } else if (message.includes('moving') || message.includes('relocate') || message.includes('pack') || message.includes('storage')) {
+      return `Planning a move in Addis Ababa? 🚚 FixerHub connects you with movers for packing or transport. Describe your move (e.g., "2-bedroom move in Bole") to find pros.`;
+    } else if (message.includes('tutor') || message.includes('lesson') || message.includes('class') || message.includes('teacher')) {
+      return `Need tutoring in Addis Ababa? 📚 Find qualified tutors on FixerHub for subjects like math or English. Specify the subject (e.g., "grade 10 physics in Yeka") to connect.`;
+    } else if (message.includes('car') || message.includes('auto') || message.includes('mechanic') || message.includes('repair')) {
+      return `Car issues? 🚗 Find trusted mechanics in Addis Ababa on FixerHub. Describe the problem (e.g., "brake repair in Kazanchis") to get reliable pros.`;
+    } else if (message.includes('tech') || message.includes('computer') || message.includes('repair') || message.includes('setup')) {
+      return `Tech troubles? 💻 FixerHub has IT experts in Addis Ababa for computer repairs or setups. Share the issue (e.g., "laptop screen fix in Arada") to find help.`;
+    } else if (message.includes('lock') || message.includes('key') || message.includes('locksmith')) {
+      return `Locked out? 🔐 Find locksmiths in Addis Ababa on FixerHub for lock repairs or key duplication. Mention your need (e.g., "house lockout in Gullele") for fast help.`;
+    } else if (message.includes('window') || message.includes('glass') || message.includes('pane') || message.includes('repair')) {
+      return `Need window repairs? 🪟 Connect with glass repair pros in Addis Ababa via FixerHub. Describe the job (e.g., "broken window in Nifas Silk") to find experts.`;
+    } else if (message.includes('floor') || message.includes('tile') || message.includes('carpet') || message.includes('hardwood')) {
+      return `Flooring needs? 🛠️ Find tile, carpet, or hardwood experts in Addis Ababa on FixerHub. Share your project (e.g., "tile kitchen floor in Bole") for matches.`;
+    } else if (message.includes('appliance') || message.includes('fridge') || message.includes('oven') || message.includes('washer') || message.includes('dryer')) {
+      return `Appliance broken? 🧺 Find technicians in Addis Ababa on FixerHub for fridge, oven, or washer repairs. Specify the appliance (e.g., "dryer fix in Lideta") to connect.`;
+    } else if (message.includes('roof cleaning') || message.includes('gutter') || message.includes('pressure wash') || message.includes('power wash')) {
+      return `Need exterior cleaning? 🚿 Find roof or gutter cleaning pros in Addis Ababa on FixerHub. Describe the job (e.g., "gutter cleaning in Kirkos") for quick matches.`;
+    } else if (message.includes('photographer') || message.includes('photo') || message.includes('shoot') || message.includes('wedding')) {
+      return `Need a photographer in Addis Ababa? 📸 FixerHub connects you with pros for weddings or events. Share details (e.g., "wedding shoot in Bole") to find talent.`;
+    } else if (message.includes('cater') || message.includes('catering') || message.includes('food') || message.includes('party')) {
+      return `Hosting an event? 🍽️ Find caterers in Addis Ababa on FixerHub for delicious meals. Describe your event (e.g., "party for 50 in Kazanchis") to get matched.`;
+    } else if (message.includes('fitness') || message.includes('trainer') || message.includes('yoga') || message.includes('personal trainer')) {
+      return `Want to get fit? 💪 Find trainers or yoga instructors in Addis Ababa on FixerHub. Share your goals (e.g., "yoga classes in Yeka") to connect with pros.`;
+    } else if (message.includes('pet') || message.includes('dog walker') || message.includes('pet sitter') || message.includes('grooming')) {
+      return `Need pet care? 🐕 Find dog walkers or groomers in Addis Ababa on FixerHub. Specify the service (e.g., "dog grooming in Arada") to find trusted pros.`;
+    } else if (message.includes('translator') || message.includes('translation') || message.includes('interpreter') || message.includes('language')) {
+      return `Need translation services? 🌐 Find translators in Addis Ababa on FixerHub for Amharic, English, or other languages. Share your need (e.g., "document translation in Bole").`;
+    } else if (message.includes('event planner') || message.includes('party') || message.includes('wedding planner') || message.includes('organizer')) {
+      return `Planning an event? 🎉 Find event planners in Addis Ababa on FixerHub for weddings or parties. Describe your event (e.g., "wedding in Kirkos") to connect.`;
+    } else if (message.includes('legal') || message.includes('lawyer') || message.includes('attorney') || message.includes('consultation')) {
+      return `Need legal help? ⚖️ Find lawyers in Addis Ababa on FixerHub for consultations or cases. Share your issue (e.g., "contract review in Lideta") to find experts.`;
+    } else if (message.includes('accountant') || message.includes('tax') || message.includes('bookkeeping') || message.includes('finance')) {
+      return `Financial needs? 💼 Find accountants in Addis Ababa on FixerHub for taxes or bookkeeping. Describe your need (e.g., "tax filing in Nifas Silk") to get matched.`;
+    } else if (message.includes('massage') || message.includes('therapist') || message.includes('spa') || message.includes('relax')) {
+      return `Need to relax? 💆‍♂️ Find massage therapists in Addis Ababa on FixerHub. Specify the service (e.g., "deep tissue massage in Bole") to connect with pros.`;
+    } else if (message.includes('web') || message.includes('design') || message.includes('developer') || message.includes('website')) {
+      return `Need a website? 💻 Find web developers in Addis Ababa on FixerHub. Share your project (e.g., "e-commerce site in Kazanchis") to find experts.`;
+    }
 
+    // New Service Categories for Ethiopia
+    if (message.includes('mason') || message.includes('brick') || message.includes('construction')) {
+      return `Need masonry or construction work? 🧱 Find skilled masons in Addis Ababa on FixerHub. Describe your project (e.g., "brick wall in Gullele") to connect with pros.`;
+    } else if (message.includes('tailor') || message.includes('sewing') || message.includes('dress') || message.includes('clothing')) {
+      return `Looking for tailoring? ✂️ FixerHub has tailors in Addis Ababa for custom dresses or repairs. Share your need (e.g., "wedding dress in Yeka") to find experts.`;
+    } else if (message.includes('security') || message.includes('guard') || message.includes('surveillance')) {
+      return `Need security services? 🔒 Find security guards or surveillance experts in Addis Ababa on FixerHub. Specify your need (e.g., "event security in Bole") for matches.`;
+    } else if (message.includes('driver') || message.includes('transport') || message.includes('delivery')) {
+      return `Need a driver or delivery service? 🚖 Find reliable drivers in Addis Ababa on FixerHub. Describe your need (e.g., "daily commute in Kirkos") to connect.`;
+    } else if (message.includes('barber') || message.includes('haircut') || message.includes('salon')) {
+      return `Need a haircut? 💇‍♂️ Find barbers or salons in Addis Ababa on FixerHub. Share your need (e.g., "men’s haircut in Arada") to find pros.`;
+    } else if (message.includes('courier') || message.includes('package') || message.includes('delivery')) {
+      return `Need to send a package? 📦 Find courier services in Addis Ababa on FixerHub. Describe your delivery (e.g., "package to Kazanchis") to get matched.`;
+    } else if (message.includes('makeup') || message.includes('beauty') || message.includes('bridal')) {
+      return `Need makeup services? 💄 Find makeup artists in Addis Ababa on FixerHub for events or bridal looks. Share details (e.g., "bridal makeup in Bole") to connect.`;
+    } else if (message.includes('internet') || message.includes('wifi') || message.includes('network')) {
+      return `Internet issues? 📡 Find network technicians in Addis Ababa on FixerHub to fix WiFi or setups. Describe the problem (e.g., "slow WiFi in Lideta") for help.`;
+    }
 
-    return `I didn’t find a match for your request. 🤔 Try describing what kind of service you need (like "cleaning", "gardening", or "electrical work") and include your location so I can guide you better.`;
+    // Fallback Response
+    return `I’m not sure about that request. 🤔 Please describe the service you need (e.g., "plumbing," "cleaning," or "tailoring") and mention your area in Addis Ababa so I can guide you to the right professionals on FixerHub!`;
   };
 
   const sendMessage = async () => {
@@ -121,7 +147,7 @@ else if (message.includes('lock') || message.includes('key') || message.includes
     } catch (error) {
       setMessages((prev) => [
         ...prev,
-        { id: Math.random().toString(), text: 'Failed to get response.', sender: 'ai' },
+        { id: Math.random().toString(), text: 'Failed to get response. Please try again.', sender: 'ai' },
       ]);
     } finally {
       setLoading(false);

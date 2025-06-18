@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,17 +16,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Plus, Edit, Trash2, DollarSign, Settings } from 'lucide-react-native';
 
+// Interfaces for type safety
 interface Job {
   job_id: string;
   category_id: string;
   category_name: string;
   category_price: number;
   is_active: boolean;
+  location: string | null;
   subcategories: SubCategory[];
 }
 
 interface SubCategory {
-  sub_category_id?: string;
+  sub_category_id: string;
   sub_category_name: string;
   price: number;
 }
@@ -36,44 +38,96 @@ interface Category {
   category_name: string;
 }
 
+interface UserProfile {
+  user_id: string;
+  username: string;
+  email: string;
+  phone_number: string | null;
+  role: 'client' | 'professional';
+  is_verified: boolean;
+  location: string | null;
+}
+
+// Fallback categories (temporary, for debugging)
+const FALLBACK_CATEGORIES: Category[] = [
+  { category_id: '1', category_name: 'Plumbing' },
+  { category_id: '2', category_name: 'Electrical' },
+  { category_id: '3', category_name: 'Carpentry' },
+  { category_id: '4', category_name: 'Painting' },
+  { category_id: '5', category_name: 'Cleaning' },
+  { category_id: '6', category_name: 'Gardening' },
+  { category_id: '7', category_name: 'HVAC' },
+  { category_id: '8', category_name: 'Roofing' },
+  { category_id: '9', category_name: 'Masonry' },
+  { category_id: '10', category_name: 'Appliance Repair' },
+];
+
 export default function ProfessionalJobs() {
   const { userProfile } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddJob, setShowAddJob] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [categoryPrice, setCategoryPrice] = useState<string>('');
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
-  const [subName, setSubName] = useState('');
-  const [subPrice, setSubPrice] = useState('');
+  const [subName, setSubName] = useState<string>('');
+  const [subPrice, setSubPrice] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(false);
 
+  // Debug Supabase connection and tables
   useEffect(() => {
-    if (userProfile) {
+    console.log('Supabase client debug:', {
+      url: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      userId: userProfile?.user_id,
+      email: userProfile?.email,
+    });
+
+    // Fetch available tables for debugging
+    const debugTables = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('information_schema.tables')
+          .select('table_schema, table_name')
+          .eq('table_schema', 'public');
+        console.log('Available tables in public schema:', { data, error });
+      } catch (err) {
+        console.error('Error fetching tables:', err);
+      }
+    };
+    debugTables();
+  }, [userProfile]);
+
+  // Load jobs and categories
+  useEffect(() => {
+    if (userProfile?.role === 'professional') {
       loadJobs();
       loadCategories();
     }
   }, [userProfile]);
 
-  const loadJobs = async () => {
+  // Load professional jobs
+  const loadJobs = useCallback(async () => {
     if (!userProfile) return;
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: jobsData, error: jobsError } = await supabase
         .from('professional_jobs')
         .select(`
           job_id,
           category_id,
           category_price,
           is_active,
-          categories!inner (
-            category_name
-          ),
-          job_sub_category_pricing!inner (
+          location,
+          job_sub_category_pricing (
+            id,
             price,
-            sub_categories!inner (
+            sub_category_id,
+            sub_categories (
               sub_category_id,
               sub_category_name
             )
@@ -81,43 +135,82 @@ export default function ProfessionalJobs() {
         `)
         .eq('user_id', userProfile.user_id);
 
-      if (error) throw error;
+      if (jobsError) throw jobsError;
 
-      const transformedJobs = data?.map((job: any) => ({
+      const categoryIds = [...new Set(jobsData?.map((job: any) => job.category_id) || [])];
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('category_id, category_name')
+        .in('category_id', categoryIds);
+
+      if (categoriesError) throw categoriesError;
+
+      const categoryMap = new Map(categoriesData?.map((cat: Category) => [cat.category_id, cat.category_name]) || []);
+
+      const transformedJobs: Job[] = jobsData?.map((job: any) => ({
         job_id: job.job_id,
         category_id: job.category_id,
-        category_name: job.categories.category_name,
-        category_price: job.category_price,
+        category_name: categoryMap.get(job.category_id) || 'Unknown Category',
+        category_price: parseFloat(job.category_price) || 0,
         is_active: job.is_active,
-        subcategories: job.job_sub_category_pricing.map((pricing: any) => ({
-          sub_category_id: pricing.sub_categories.sub_category_id,
-          sub_category_name: pricing.sub_categories.sub_category_name,
-          price: pricing.price,
-        })),
+        location: job.location || 'Addis Ababa',
+        subcategories: job.job_sub_category_pricing?.map((pricing: any) => ({
+          sub_category_id: pricing.sub_category_id,
+          sub_category_name: pricing.sub_categories?.sub_category_name || 'Unknown Subcategory',
+          price: parseFloat(pricing.price) || 0,
+        })) || [],
       })) || [];
 
       setJobs(transformedJobs);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading jobs:', error);
-      Alert.alert('Error', 'Failed to load jobs');
+      Alert.alert('Error', error.message || 'Failed to load jobs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userProfile]);
 
-  const loadCategories = async () => {
+  // Load all available categories (no user filter)
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError(null);
     try {
-      const { data, error } = await supabase
+      console.log('Fetching all categories');
+      const { data, error, status, count } = await supabase
         .from('categories')
-        .select('category_id, category_name')
+        .select('category_id, category_name', { count: 'exact' })
         .order('category_name', { ascending: true });
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load categories');
-    }
-  };
 
+      console.log('Supabase categories response:', { data, error, status, count });
+
+      if (error) {
+        throw new Error(`Error fetching categories: ${error.message}`);
+      }
+
+      if (data && data.length > 0) {
+        setCategories(data);
+        setUsingFallback(false);
+      } else {
+        console.warn('No categories found in database. Using fallback categories.');
+        setCategories(FALLBACK_CATEGORIES);
+        setUsingFallback(true);
+        setCategoriesError(
+          'Failed to load categories from the database. Using temporary categories. Please contact support.'
+        );
+      }
+    } catch (error: any) {
+      console.error('Error loading categories:', error);
+      setCategories(FALLBACK_CATEGORIES);
+      setUsingFallback(true);
+      setCategoriesError(
+        error.message || 'Failed to load categories. Using temporary categories. Please contact support.'
+      );
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  // Toggle job active/inactive status
   const toggleJobStatus = async (jobId: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
@@ -127,16 +220,14 @@ export default function ProfessionalJobs() {
 
       if (error) throw error;
 
-      loadJobs();
-      Alert.alert(
-        'Success', 
-        `Job ${!currentStatus ? 'activated' : 'deactivated'} successfully`
-      );
+      await loadJobs();
+      Alert.alert('Success', `Job ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Error', error.message || 'Failed to update job status');
     }
   };
 
+  // Delete a job and its subcategories
   const deleteJob = async (jobId: string) => {
     Alert.alert(
       'Delete Job',
@@ -148,22 +239,24 @@ export default function ProfessionalJobs() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await supabase
+              const { error: pricingError } = await supabase
                 .from('job_sub_category_pricing')
                 .delete()
                 .eq('job_id', jobId);
 
-              const { error } = await supabase
+              if (pricingError) throw pricingError;
+
+              const { error: jobError } = await supabase
                 .from('professional_jobs')
                 .delete()
                 .eq('job_id', jobId);
 
-              if (error) throw error;
+              if (jobError) throw jobError;
 
-              loadJobs();
+              await loadJobs();
               Alert.alert('Success', 'Job deleted successfully');
             } catch (error: any) {
-              Alert.alert('Error', error.message);
+              Alert.alert('Error', error.message || 'Failed to delete job');
             }
           },
         },
@@ -171,6 +264,7 @@ export default function ProfessionalJobs() {
     );
   };
 
+  // Reset form fields
   const resetForm = () => {
     setSelectedCategory('');
     setCategoryPrice('');
@@ -179,31 +273,44 @@ export default function ProfessionalJobs() {
     setSubPrice('');
   };
 
+  // Add a subcategory to the form
   const handleAddSubcategory = () => {
-    if (!subName.trim() || !subPrice.trim()) {
-      Alert.alert('Error', 'Please enter both subcategory name and price.');
+    if (!subName.trim() || !subPrice.trim() || isNaN(parseFloat(subPrice))) {
+      Alert.alert('Error', 'Please enter a valid subcategory name and price.');
       return;
     }
     setSubcategories([
       ...subcategories,
-      { sub_category_name: subName.trim(), price: parseFloat(subPrice) },
+      { sub_category_id: '', sub_category_name: subName.trim(), price: parseFloat(subPrice) },
     ]);
     setSubName('');
     setSubPrice('');
   };
 
+  // Remove a subcategory from the form
   const handleRemoveSubcategory = (index: number) => {
     setSubcategories(subcategories.filter((_, i) => i !== index));
   };
 
+  // Save a new job
   const handleSaveJob = async () => {
-    if (!selectedCategory || !categoryPrice.trim()) {
-      Alert.alert('Error', 'Please select a category and enter a price.');
+    if (!userProfile) {
+      Alert.alert('Error', 'User profile not found');
+      return;
+    }
+    if (!selectedCategory || !categoryPrice.trim() || isNaN(parseFloat(categoryPrice))) {
+      Alert.alert('Error', 'Please select a category and enter a valid price.');
+      return;
+    }
+    if (usingFallback) {
+      Alert.alert(
+        'Warning',
+        'Using temporary categories. Job creation may fail due to invalid category IDs. Please contact support.'
+      );
       return;
     }
     setSaving(true);
     try {
-      // Insert job
       const { data: jobData, error: jobError } = await supabase
         .from('professional_jobs')
         .insert({
@@ -211,17 +318,15 @@ export default function ProfessionalJobs() {
           category_id: selectedCategory,
           category_price: parseFloat(categoryPrice),
           is_active: true,
+          location: userProfile.location || 'Addis Ababa',
         })
         .select('job_id')
         .single();
 
       if (jobError) throw jobError;
 
-      // Insert subcategories if any
       for (const sub of subcategories) {
-        // Find or create subcategory
-        let subCatId = null;
-        // Try to find existing subcategory
+        let subCatId: string | null = null;
         const { data: existingSub, error: findError } = await supabase
           .from('sub_categories')
           .select('sub_category_id')
@@ -230,10 +335,10 @@ export default function ProfessionalJobs() {
           .maybeSingle();
 
         if (findError) throw findError;
+
         if (existingSub) {
           subCatId = existingSub.sub_category_id;
         } else {
-          // Create new subcategory
           const { data: newSub, error: newSubError } = await supabase
             .from('sub_categories')
             .insert({
@@ -246,7 +351,6 @@ export default function ProfessionalJobs() {
           subCatId = newSub.sub_category_id;
         }
 
-        // Insert pricing
         const { error: pricingError } = await supabase
           .from('job_sub_category_pricing')
           .insert({
@@ -259,14 +363,16 @@ export default function ProfessionalJobs() {
 
       setShowAddJob(false);
       resetForm();
-      loadJobs();
+      await loadJobs();
       Alert.alert('Success', 'Job added successfully!');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add job.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
+  // Render each job item
   const renderJobItem = ({ item }: { item: Job }) => (
     <View style={styles.jobCard}>
       <View style={styles.jobHeader}>
@@ -274,8 +380,9 @@ export default function ProfessionalJobs() {
           <Text style={styles.jobTitle}>{item.category_name}</Text>
           <View style={styles.priceContainer}>
             <DollarSign size={16} color="#10B981" />
-            <Text style={styles.jobPrice}>${item.category_price}</Text>
+            <Text style={styles.jobPrice}>ETB {item.category_price.toFixed(2)}</Text>
           </View>
+          <Text style={styles.jobLocation}>{item.location}</Text>
         </View>
         <View style={styles.jobActions}>
           <TouchableOpacity
@@ -290,19 +397,21 @@ export default function ProfessionalJobs() {
       </View>
       <View style={styles.subcategoriesContainer}>
         <Text style={styles.subcategoriesTitle}>Services:</Text>
-        {item.subcategories.map((sub) => (
-          <View key={sub.sub_category_id} style={styles.subcategoryItem}>
-            <Text style={styles.subcategoryName}>{sub.sub_category_name}</Text>
-            <Text style={styles.subcategoryPrice}>${sub.price}</Text>
-          </View>
-        ))}
+        {item.subcategories.length > 0 ? (
+          item.subcategories.map((sub) => (
+            <View key={sub.sub_category_id} style={styles.subcategoryItem}>
+              <Text style={styles.subcategoryName}>{sub.sub_category_name}</Text>
+              <Text style={styles.subcategoryPrice}>ETB {sub.price.toFixed(2)}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.subcategoryName}>No subcategories</Text>
+        )}
       </View>
       <View style={styles.jobFooter}>
         <TouchableOpacity
           style={styles.editButton}
-          onPress={() => {
-            Alert.alert('Coming Soon', 'Job editing will be available soon');
-          }}
+          onPress={() => Alert.alert('Coming Soon', 'Job editing will be available soon')}
         >
           <Edit size={16} color="#2563EB" />
           <Text style={styles.editButtonText}>Edit</Text>
@@ -322,16 +431,13 @@ export default function ProfessionalJobs() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>My Jobs</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddJob(true)}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddJob(true)}>
           <Plus size={20} color="white" />
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" />
         </View>
       ) : jobs.length > 0 ? (
@@ -348,12 +454,9 @@ export default function ProfessionalJobs() {
           <Settings size={48} color="#D1D5DB" />
           <Text style={styles.emptyTitle}>No Jobs Yet</Text>
           <Text style={styles.emptyDescription}>
-            Add your first job to start receiving client requests
+            Welcome, Ayele! Add your first job to start receiving client requests in Addis Ababa
           </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={() => setShowAddJob(true)}
-          >
+          <TouchableOpacity style={styles.emptyButton} onPress={() => setShowAddJob(true)}>
             <Text style={styles.emptyButtonText}>Add Your First Job</Text>
           </TouchableOpacity>
         </View>
@@ -363,7 +466,10 @@ export default function ProfessionalJobs() {
         visible={showAddJob}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowAddJob(false)}
+        onRequestClose={() => {
+          setShowAddJob(false);
+          resetForm();
+        }}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
@@ -379,131 +485,95 @@ export default function ProfessionalJobs() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-            {/* Category Picker */}
-            <Text style={{ fontSize: 16, fontWeight: '500', marginBottom: 8, alignSelf: 'flex-start' }}>Category</Text>
-            <View style={{
-              borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginBottom: 16, width: '100%'
-            }}>
-              {categories.length === 0 ? (
-                <ActivityIndicator color="#2563EB" />
+            <Text style={styles.inputLabel}>Category</Text>
+            <View style={styles.categoryPicker}>
+              {categoriesLoading ? (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator color="#2563EB" size="large" />
+                  <Text style={styles.loaderText}>Loading categories...</Text>
+                </View>
+              ) : categoriesError ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{categoriesError}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={loadCategories}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : categories.length === 0 ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>No categories available. Please contact support.</Text>
+                </View>
               ) : (
                 categories.map((cat) => (
                   <TouchableOpacity
-                   placeholder="Catagory"
                     key={cat.category_id}
-                    style={{
-                      padding: 16,
-                      backgroundColor: selectedCategory === cat.category_id ? '#2563EB22' : 'transparent',
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#E5E7EB',
-                    }}
+                    style={[
+                      styles.categoryOption,
+                      selectedCategory === cat.category_id && styles.selectedCategory,
+                    ]}
                     onPress={() => setSelectedCategory(cat.category_id)}
                   >
-                    <Text style={{
-                      color: selectedCategory === cat.category_id ? '#2563EB' : '#111827',
-                      fontWeight: selectedCategory === cat.category_id ? '700' : '400',
-                    }}>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedCategory === cat.category_id && styles.selectedCategoryText,
+                      ]}
+                    >
                       {cat.category_name}
                     </Text>
                   </TouchableOpacity>
                 ))
               )}
             </View>
-            {/* Price Input */}
-            <Text style={{ fontSize: 16, fontWeight: '500', marginBottom: 8, alignSelf: 'flex-start' }}>Category Price</Text>
+
+            <Text style={styles.inputLabel}>Category Price (ETB)</Text>
             <TextInput
               placeholder="Enter price"
               value={categoryPrice}
               onChangeText={setCategoryPrice}
               keyboardType="numeric"
-              style={{
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                width: '100%',
-              }}
+              style={styles.input}
             />
-            {/* Subcategories */}
-            <Text style={{ fontSize: 16, fontWeight: '500', marginBottom: 8, alignSelf: 'flex-start' }}>Subcategories</Text>
+
+            <Text style={styles.inputLabel}>Subcategories</Text>
             {subcategories.map((sub, idx) => (
-              <View key={idx} style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 8,
-                backgroundColor: '#F3F4F6',
-                borderRadius: 8,
-                padding: 8,
-                width: '100%',
-              }}>
-                <Text style={{ flex: 1 }}>{sub.sub_category_name} (${sub.price})</Text>
+              <View key={idx} style={styles.subcategoryRow}>
+                <Text style={styles.subcategoryText}>
+                  {sub.sub_category_name} (ETB {sub.price.toFixed(2)})
+                </Text>
                 <TouchableOpacity onPress={() => handleRemoveSubcategory(idx)}>
-                  <Text style={{ color: '#EF4444', fontWeight: '600' }}>Remove</Text>
+                  <Text style={styles.removeSubcategoryText}>Remove</Text>
                 </TouchableOpacity>
               </View>
             ))}
-            <View style={{ flexDirection: 'row', marginBottom: 16, width: '100%' }}>
+            <View style={styles.subcategoryInputRow}>
               <TextInput
                 placeholder="Subcategory name"
                 value={subName}
                 onChangeText={setSubName}
-                style={{
-                  flex: 2,
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderRadius: 8,
-                  padding: 8,
-                  marginRight: 8,
-                }}
+                style={[styles.input, styles.subcategoryNameInput]}
               />
               <TextInput
                 placeholder="Price"
                 value={subPrice}
                 onChangeText={setSubPrice}
                 keyboardType="numeric"
-                style={{ 
-                  width: 100,
-                  flex: 1,
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderRadius: 8,
-                  padding: 8,
-                  marginRight: 8,
-                }}
+                style={[styles.input, styles.subcategoryPriceInput]}
               />
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#10B981',
-                  borderRadius: 8,
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                onPress={handleAddSubcategory}
-              >
-                <Text style={{ color: 'white', fontWeight: '700' }}>Add</Text>
+              <TouchableOpacity style={styles.addSubcategoryButton} onPress={handleAddSubcategory}>
+                <Text style={styles.addSubcategoryText}>Add</Text>
               </TouchableOpacity>
             </View>
-            
-            {/* Save Button */}
+
             <TouchableOpacity
-              style={{
-                backgroundColor: '#2563EB',
-                borderRadius: 8,
-                paddingVertical: 14,
-                alignItems: 'center',
-                width: '100%',
-                marginTop: 16,
-              }}
+              style={[styles.saveButton, saving && styles.disabledButton]}
               onPress={handleSaveJob}
               disabled={saving}
             >
               {saving ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Save Job</Text>
+                <Text style={styles.saveButtonText}>Save Job</Text>
               )}
             </TouchableOpacity>
           </ScrollView>
@@ -513,51 +583,63 @@ export default function ProfessionalJobs() {
   );
 }
 
-// ...styles remain unchanged from your original code
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F9FAFA',
   },
   header: {
-    backgroundColor: 'white',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     color: '#111827',
   },
   addButton: {
     backgroundColor: '#2563EB',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFA',
   },
   jobsList: {
     flex: 1,
+    backgroundColor: '#F9FAFA',
   },
   jobsContent: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   jobCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   jobHeader: {
     flexDirection: 'row',
@@ -572,7 +654,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 6,
+  },
+  jobLocation: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
   },
   priceContainer: {
     flexDirection: 'row',
@@ -580,7 +667,7 @@ const styles = StyleSheet.create({
   },
   jobPrice: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#10B981',
     marginLeft: 4,
   },
@@ -612,13 +699,13 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   subcategoriesContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   subcategoriesTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#6B7280',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subcategoryItem: {
     flexDirection: 'row',
@@ -645,7 +732,7 @@ const styles = StyleSheet.create({
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#EBF8FF',
     borderRadius: 8,
@@ -659,7 +746,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#FEF2F2',
     borderRadius: 8,
@@ -697,22 +784,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   emptyButtonText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#E5E5E5',
   },
   modalTitle: {
     fontSize: 20,
@@ -720,7 +807,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
   },
   closeButtonText: {
     fontSize: 16,
@@ -728,22 +815,136 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   modalContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    flexGrow: 1,
   },
-  comingSoonText: {
-    fontSize: 24,
-    fontWeight: '600',
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '500',
     color: '#111827',
+    marginBottom: 8,
+  },
+  categoryPicker: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    marginBottom: 16,
+    maxHeight: 200,
+  },
+  loaderContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  loaderText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  errorContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#EF4444',
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  categoryOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  selectedCategory: {
+    backgroundColor: '#EBF8FF',
+  },
+  categoryText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  selectedCategoryText: {
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  subcategoryInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  comingSoonDescription: {
+  subcategoryNameInput: {
+    flex: 2,
+    marginRight: 8,
+  },
+  subcategoryPriceInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  addSubcategoryButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addSubcategoryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  subcategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  subcategoryText: {
+    fontSize: 14,
+    color: '#111827',
+    flex: 1,
+  },
+  removeSubcategoryText: {
+    fontSize: 14,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  disabledButton: {
+    backgroundColor: '#A3BFFA',
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
+    fontWeight: '600',
   },
 });

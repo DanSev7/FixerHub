@@ -7,43 +7,24 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Search, Settings, Users, ArrowRight } from 'lucide-react-native';
 
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<'client' | 'professional' | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
   const router = useRouter();
 
-  const handleRoleSelection = async () => {
-    if (!selectedRole || !user) {
+  const handleRoleSelection = () => {
+    if (!selectedRole) {
       Alert.alert('Error', 'Please select a role');
       return;
     }
 
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ role: selectedRole })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      // Navigate based on role
-      if (selectedRole === 'client') {
-        router.replace('/(client)');
-      } else {
-        router.replace('/(professional)');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
-    }
+    // Navigate to signup with the selected role
+    router.push({
+      pathname: '/auth/sign-up',
+      params: { role: selectedRole }
+    });
   };
 
   return (
@@ -115,15 +96,13 @@ export default function RoleSelection() {
         <TouchableOpacity
           style={[
             styles.button,
-            (!selectedRole || loading) && styles.buttonDisabled,
+            !selectedRole && styles.buttonDisabled,
           ]}
           onPress={handleRoleSelection}
-          disabled={!selectedRole || loading}
+          disabled={!selectedRole}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Setting up...' : 'Continue'}
-          </Text>
-          {!loading && <ArrowRight size={20} color="#2563EB" style={styles.buttonIcon} />}
+          <Text style={styles.buttonText}>Continue</Text>
+          <ArrowRight size={20} color="#2563EB" style={styles.buttonIcon} />
         </TouchableOpacity>
       </View>
     </LinearGradient>
