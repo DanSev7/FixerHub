@@ -21,13 +21,26 @@ or
 ```bash
 npx expo start
 ```
-## add the following in the .env file
-
+## add the following in the .env file 
 ```bash
 EXPO_PUBLIC_SUPABASE_ANON_KEY= "your-anon-key"
 EXPO_PUBLIC_SUPABASE_URL ="your-supabase-url"
 ```
+## Edit api.ts
+```
+// API Configuration
+export const API_URL = 'http://192.168.87.144:3000/api';// here add your ipconfig address
 
+// API Endpoints
+export const ENDPOINTS = {
+  SIGNUP: '/signup',
+  LOGIN: '/login',
+  VERIFY_EMAIL: '/verify-email',
+  RESEND_VERIFICATION: '/resend-verification',
+  ME: '/me',
+  LOGOUT: '/logout',
+} as const; 
+```
 ## Sql 
 ```bash
 -- Enable UUID extension
