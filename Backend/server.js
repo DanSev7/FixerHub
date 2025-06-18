@@ -17,8 +17,9 @@ app.use('/api', verifyRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err.stack);
+  // console.error('Server Error:', err.stack);
+  console.error('Server Error:', err.message);
   res.status(500).json({ message: 'Internal server error', error: err.message });
 });
 
-app.listen(3000, () => console.log('Server running on port 3000'));
+app.listen(3000, () => console.log('Server running on port 3000')); 
